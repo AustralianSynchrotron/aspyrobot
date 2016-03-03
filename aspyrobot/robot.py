@@ -1,7 +1,7 @@
 from epics import Device
 
 
-class RobotDevice(Device):
+class Robot(Device):
 
     attrs = {
         'run_args': 'RA_CMD',
@@ -30,7 +30,7 @@ class RobotDevice(Device):
     attrs_r = {v: k for k, v in attrs.items()}
 
     def __init__(self, prefix, **kwargs):
-        super(RobotDevice, self).__init__(prefix, **kwargs)
+        super(Robot, self).__init__(prefix, **kwargs)
         for attr, suffix in self.attrs.items():
             self.add_pv(prefix + suffix, attr=attr, form='ctrl')
 

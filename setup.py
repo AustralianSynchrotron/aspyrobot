@@ -1,13 +1,13 @@
 from setuptools import setup
 import re
 
-with open('pyrobot/__init__.py', 'r') as f:
+with open('aspyrobot/__init__.py', 'r') as f:
     version = re.search(r"__version__ = '(.*)'", f.read()).group(1)
 
 setup(
-    name='pyrobot',
+    name='aspyrobot',
     version=version,
-    packages=['pyrobot'],
+    packages=['aspyrobot'],
     install_requires=[
         'pyzmq>=15.1.0',
         'pyepics>=3.2.5rc3',

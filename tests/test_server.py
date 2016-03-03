@@ -1,6 +1,6 @@
 import pytest
 from mock import MagicMock, call
-from pyrobot.server import RobotServer
+from aspyrobot.server import RobotServer
 
 
 @pytest.fixture

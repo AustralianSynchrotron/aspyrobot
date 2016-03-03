@@ -1,4 +1,4 @@
-from pyrobot.client import RobotClient
+from aspyrobot.client import RobotClient
 import pytest
 from mock import MagicMock, call
 
