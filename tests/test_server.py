@@ -9,6 +9,20 @@ def server():
     return server
 
 
+def test_process_request(server):
+    server.calibrate = MagicMock(return_value=None)
+    message = {'operation': 'calibrate', 'parameters': {'target': 'middle'}}
+    response = server.process_request(message)
+    assert server.calibrate.call_args == call(target='middle')
+    assert response['error'] is None
+
+
+def test_process_request_returns_error_for_invalid_operation(server):
+    message = {'operation': 'does_not_exist', 'parameters': {}}
+    response = server.process_request(message)
+    assert response['error'] == 'invalid request'
+
+
 def test_on_robot_update(server):
     server.update_some_attr = MagicMock()
     server.on_robot_update("{'set': 'some_attr', 'value': 5, 'extra': 'info'}")

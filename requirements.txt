@@ -7,7 +7,6 @@ pep8==1.7.0
 py==1.4.31
 pyepics==3.2.5rc3
 pyflakes==1.0.0
-pyrobot==0.1.0
 pytest==2.9.0
 pyzmq==15.2.0
 six==1.10.0

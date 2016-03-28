@@ -56,18 +56,22 @@ class RobotServer(object):
         socket.bind(request_addr)
         while True:
             message = socket.recv_json()
-            self.logger.debug('client request: %r', message)
-            operation = message.get('operation')
-            parameters = message.get('parameters', {})
-            if operation and getattr(self, operation, None):
-                response = getattr(self, operation)(**parameters)
-                if response is None:
-                    response = {'error': None}
-            else:
-                self.logger.error('invalid client request: %r', message)
-                response = {'error': 'invalid request'}
-            self.logger.debug('response to client: %r', response)
+            response = self.process_request(message)
             socket.send_json(response)
+
+    def process_request(self, message):
+        self.logger.debug('client request: %r', message)
+        operation = message.get('operation')
+        parameters = message.get('parameters', {})
+        if operation and getattr(self, operation, None):
+            response = getattr(self, operation)(**parameters)
+            if response is None:
+                response = {'error': None}
+        else:
+            self.logger.error('invalid client request: %r', message)
+            response = {'error': 'invalid request'}
+        self.logger.debug('response to client: %r', response)
+        return response
 
     def foreground_done_callback(self, value, **_):
         if value == 0:
