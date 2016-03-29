@@ -63,11 +63,11 @@ class RobotServer(object):
         self.logger.debug('client request: %r', message)
         operation = message.get('operation')
         parameters = message.get('parameters', {})
-        if operation and getattr(self, operation, None):
+        try:
             response = getattr(self, operation)(**parameters)
             if response is None:
                 response = {'error': None}
-        else:
+        except (TypeError, AttributeError):
             self.logger.error('invalid client request: %r', message)
             response = {'error': 'invalid request'}
         self.logger.debug('response to client: %r', response)

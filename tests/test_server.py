@@ -17,8 +17,21 @@ def test_process_request(server):
     assert response['error'] is None
 
 
+def test_process_request_missing_operation(server):
+    response = server.process_request({})
+    assert response['error'] == 'invalid request'
+
+
 def test_process_request_returns_error_for_invalid_operation(server):
     message = {'operation': 'does_not_exist', 'parameters': {}}
+    response = server.process_request(message)
+    assert response['error'] == 'invalid request'
+
+
+def test_process_request_returns_error_for_incorrect_parameters(server):
+    def calibrate(target=None): pass
+    server.calibrate = calibrate
+    message = {'operation': 'calibrate', 'parameters': {'wrong_name': 'middle'}}
     response = server.process_request(message)
     assert response['error'] == 'invalid request'
 
