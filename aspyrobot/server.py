@@ -1,8 +1,29 @@
 import zmq
+from epics.ca import CAThread
 from six.moves.queue import Queue
-from threading import Thread, Lock, ThreadError
+from threading import Lock
 from ast import literal_eval
+import inspect
 import logging
+from functools import wraps
+
+
+def foreground_operation(func):
+    @wraps(func)
+    def wrapper(server, handle, *args, **kwargs):
+        server.operation_update(handle, stage='start')
+        message = None
+        error = None
+        if not server.foreground_operation_lock.acquire(False):
+            error = 'busy'
+        else:
+            try:
+                message = func(server, handle, *args, **kwargs)
+            except Exception as e:
+                error = str(e)
+            server.foreground_operation_lock.release()
+        server.operation_update(handle, stage='end', message=message, error=error)
+    return wrapper
 
 
 class RobotServer(object):
@@ -16,21 +37,20 @@ class RobotServer(object):
         self.context = zmq.Context()
         self.publish_queue = Queue()
         self.foreground_operation_lock = Lock()
+        self.operation_handle = 0
+        self.handle_lock = Lock()
 
     def setup(self):
-        self.publisher_thread = Thread(target=self.publisher,
-                                       args=(self.update_addr,))
+        self.publisher_thread = CAThread(target=self.publisher,
+                                         args=(self.update_addr,))
         self.publisher_thread.daemon = True
         self.publisher_thread.start()
-        self.request_thread = Thread(target=self.request_handler,
-                                     args=(self.request_addr,))
+        self.request_thread = CAThread(target=self.request_handler,
+                                       args=(self.request_addr,))
         self.request_thread.daemon = True
         self.request_thread.start()
         for attr, pv in self.robot._pvs.items():
             pv.add_callback(self.pv_callback)
-        self.robot.PV('foreground_done').add_callback(
-            self.foreground_done_callback
-        )
         self.robot.PV('client_update').add_callback(self.on_robot_update)
         self.on_robot_update(self.robot.PV('client_update').char_value)
         self.logger.debug('setup complete')
@@ -64,23 +84,24 @@ class RobotServer(object):
         operation = message.get('operation')
         parameters = message.get('parameters', {})
         try:
-            response = getattr(self, operation)(**parameters)
-            if response is None:
-                response = {'error': None}
-        except (TypeError, AttributeError):
-            self.logger.error('invalid client request: %r', message)
-            response = {'error': 'invalid request'}
-        self.logger.debug('response to client: %r', response)
-        return response
-
-    def foreground_done_callback(self, value, **_):
-        if value == 0:
-            self.foreground_operation_lock.acquire(False)
-        elif value == 1:
-            try:
-                self.foreground_operation_lock.release()
-            except ThreadError:
-                pass
+            target = getattr(self, operation)
+        except (AttributeError, TypeError):
+            self.logger.error('operation does not exist: %r', operation)
+            return {'error': 'invalid request: operation does not exist'}
+        try:
+            inspect.signature(target).bind(None, **parameters)
+        except TypeError:
+            self.logger.error('invalid arguments for operation %r: %r',
+                              operation, parameters)
+            return {'error': 'invalid request: incorrect arguments'}
+        self.logger.debug('calling: %r with %r', operation, parameters)
+        with self.handle_lock:
+            self.operation_handle += 1
+            handle = self.operation_handle
+        thread = CAThread(target=target, args=(handle,), kwargs=parameters)
+        thread.daemon = True
+        thread.start()
+        return {'error': None, 'handle': handle}
 
     def on_robot_update(self, char_value, **_):
         try:
@@ -96,3 +117,12 @@ class RobotServer(object):
             method(**message)
         except TypeError:
             self.logger.error('Invalid method signature for update: %r', message)
+
+    def operation_update(self, handle, message='', stage='update', error=None):
+        self.publish_queue.put({
+            'type': 'operation',
+            'stage': stage,
+            'handle': handle,
+            'message': message,
+            'error': error,
+        })

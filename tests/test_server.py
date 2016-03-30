@@ -1,6 +1,8 @@
 import pytest
 from mock import MagicMock, call
-from aspyrobot.server import RobotServer
+from aspyrobot.server import RobotServer, foreground_operation
+from types import MethodType
+import time
 
 
 @pytest.fixture
@@ -13,27 +15,65 @@ def test_process_request(server):
     server.calibrate = MagicMock(return_value=None)
     message = {'operation': 'calibrate', 'parameters': {'target': 'middle'}}
     response = server.process_request(message)
-    assert server.calibrate.call_args == call(target='middle')
     assert response['error'] is None
+    assert response['handle'] == 1
+    time.sleep(.05)
+    assert server.calibrate.call_args == call(1, target='middle')
 
 
 def test_process_request_missing_operation(server):
     response = server.process_request({})
-    assert response['error'] == 'invalid request'
+    assert 'invalid request' in response['error']
 
 
 def test_process_request_returns_error_for_invalid_operation(server):
     message = {'operation': 'does_not_exist', 'parameters': {}}
     response = server.process_request(message)
-    assert response['error'] == 'invalid request'
+    assert 'does not exist' in response['error']
 
 
 def test_process_request_returns_error_for_incorrect_parameters(server):
-    def calibrate(target=None): pass
-    server.calibrate = calibrate
+    def calibrate(server, handle, target=None): pass
+    server.calibrate = MethodType(calibrate, server)
     message = {'operation': 'calibrate', 'parameters': {'wrong_name': 'middle'}}
     response = server.process_request(message)
-    assert response['error'] == 'invalid request'
+    assert 'invalid request' in response['error']
+
+
+def test_foreground_operation_requests_fail_if_busy(server):
+    @foreground_operation
+    def do_something(server, handle): pass
+    server.do_something = MethodType(do_something, server)
+    server.foreground_operation_lock.acquire(False)
+    server.process_request({'operation': 'do_something'})
+    server.publish_queue.get(timeout=.1)  # start update
+    end_update = server.publish_queue.get(timeout=.1)
+    assert 'busy' in end_update['error']
+    # Check foreground is still locked
+    assert server.foreground_operation_lock.acquire(False) is False
+
+
+def test_foreground_operation_with_error(server):
+    @foreground_operation
+    def bad_operation(server, handle):
+        raise Exception('Bad bad happened')
+    server.bad_operation = MethodType(bad_operation, server)
+    server.process_request({'operation': 'bad_operation'})
+    server.publish_queue.get(timeout=.1)  # start update
+    end_update = server.publish_queue.get(timeout=.1)
+    assert 'Bad bad happened' in end_update['error']
+    # Check foreground is unlocked
+    assert server.foreground_operation_lock.acquire(False) is True
+
+
+def test_foreground_operation_sends_message(server):
+    @foreground_operation
+    def operation(server, handle):
+        return 'all good'
+    operation(server, 1)
+    server.publish_queue.get(timeout=.1)  # start update
+    end_update = server.publish_queue.get(timeout=.1)
+    assert end_update['message'] == 'all good'
 
 
 def test_on_robot_update(server):

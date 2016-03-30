@@ -1,5 +1,5 @@
 import zmq
-from threading import Thread
+from threading import Thread, Lock
 from six.moves.queue import Queue
 
 
@@ -13,6 +13,7 @@ class RobotClient(object):
         self._context = zmq.Context()
         self._request_queue = Queue()
         self._reply_queue = Queue()
+        self._operation_lock = Lock()
 
     def setup(self):
         self._request_thread = Thread(target=self._request_monitor,
@@ -46,7 +47,11 @@ class RobotClient(object):
 
     def _handle_update(self, socket):
         message = socket.recv_json()
-        for attr, value in message.items():
+        if message['type'] == 'values':
+            self._handle_values(message.get('data', {}))
+
+    def _handle_values(self, values):
+        for attr, value in values.items():
             setattr(self, attr, value)
             callback = getattr(self, 'on_' + attr, None)
             if callback is not None:
@@ -57,11 +62,12 @@ class RobotClient(object):
                     callback(value)
 
     def run_operation(self, operation, **parameters):
-        self._request_queue.put({
-            'operation': operation,
-            'parameters': parameters,
-        })
-        reply = self._reply_queue.get()
+        with self._operation_lock:
+            self._request_queue.put({
+                'operation': operation,
+                'parameters': parameters,
+            })
+            reply = self._reply_queue.get()
         return reply
 
     def refresh(self):

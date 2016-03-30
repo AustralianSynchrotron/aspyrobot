@@ -1,13 +1,13 @@
 from aspyrobot.client import RobotClient
 import pytest
 from mock import MagicMock, call
+from threading import Thread
+from concurrent.futures import ThreadPoolExecutor
 
 
 @pytest.fixture
 def client():
-    request_addr = 'tcp://localhost:9876'
-    update_addr = 'tcp://localhost:9877'
-    return RobotClient(request_addr, update_addr)
+    return RobotClient()
 
 
 def test_run_operation(client):
@@ -28,9 +28,10 @@ def test_handle_request(client):
     assert mock_socket.send_json.call_args == call(request)
 
 
-def test_handle_update_sets_attrs(client):
+def test_handle_update_sets_attrs_for_values(client):
     mock_socket = MagicMock()
-    mock_socket.recv_json.return_value = {'lid_open_status': 'open'}
+    message = {'type': 'values', 'data': {'lid_open_status': 'open'}}
+    mock_socket.recv_json.return_value = message
     client._handle_update(mock_socket)
     assert client.lid_open_status == 'open'
 
@@ -38,7 +39,8 @@ def test_handle_update_sets_attrs(client):
 def test_handle_update_calls_callbacks(client):
     client.on_lid_open_status = MagicMock()
     mock_socket = MagicMock()
-    mock_socket.recv_json.return_value = {'lid_open_status': 'open'}
+    message = {'type': 'values', 'data': {'lid_open_status': 'open'}}
+    mock_socket.recv_json.return_value = message
     client._handle_update(mock_socket)
     assert client.on_lid_open_status.call_args == call('open')
 
@@ -46,14 +48,30 @@ def test_handle_update_calls_callbacks(client):
 def test_handle_calls_delegate_callbacks(client):
     client.delegate = MagicMock()
     mock_socket = MagicMock()
-    mock_socket.recv_json.return_value = {'lid_open_status': 'open'}
+    message = {'type': 'values', 'data': {'lid_open_status': 'open'}}
+    mock_socket.recv_json.return_value = message
     client._handle_update(mock_socket)
     assert client.delegate.on_lid_open_status.call_args == call('open')
 
 
 def test_refresh(client):
+    raise Exception('TODO: Test is invalid due to server changes')
     client.run_operation = MagicMock()
     client.run_operation.return_value = {'some_robot_attr': 1}
     client.refresh()
     assert client.run_operation.call_args == call('refresh')
     assert client.some_robot_attr == 1
+
+
+def test_run_operation_is_thread_safe(client):
+    def processor():
+        while True:
+            request = client._request_queue.get()
+            client._reply_queue.put(request)
+    Thread(target=processor, daemon=True).start()
+    with ThreadPoolExecutor() as executor:
+        futures = {operation: executor.submit(client.run_operation, operation)
+                   for operation in range(10)}
+        for operation, future in futures.items():
+            response = future.result()
+            assert response['operation'] == operation
