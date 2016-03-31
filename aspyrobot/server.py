@@ -23,6 +23,15 @@ def foreground_operation(func):
                 error = str(e)
             server.foreground_operation_lock.release()
         server.operation_update(handle, stage='end', message=message, error=error)
+    wrapper._operation_type = 'foreground'
+    return wrapper
+
+
+def query_operation(func):
+    @wraps(func)
+    def wrapper(server, *args, **kwargs):
+        return func(server, *args, **kwargs)
+    wrapper._operation_type = 'query'
     return wrapper
 
 
@@ -52,7 +61,6 @@ class RobotServer(object):
         for attr, pv in self.robot._pvs.items():
             pv.add_callback(self.pv_callback)
         self.robot.PV('client_update').add_callback(self.on_robot_update)
-        self.on_robot_update(self.robot.PV('client_update').char_value)
         self.logger.debug('setup complete')
 
     def pv_callback(self, pvname, value, char_value, type, **kwargs):
@@ -89,12 +97,29 @@ class RobotServer(object):
             self.logger.error('operation does not exist: %r', operation)
             return {'error': 'invalid request: operation does not exist'}
         try:
-            inspect.signature(target).bind(None, **parameters)
-        except TypeError:
+            operation_type = target._operation_type
+        except AttributeError:
+            self.logger.error('%r must be declared an operation', operation)
+            return {'error': 'invalid request: %r not an operation' % operation}
+        try:
+            sig = inspect.signature(target)
+            if operation_type == 'query':
+                sig.bind(**parameters)
+            else:
+                # Must accept a handle argument
+                sig.bind(None, **parameters)
+        except (ValueError, TypeError):
             self.logger.error('invalid arguments for operation %r: %r',
                               operation, parameters)
             return {'error': 'invalid request: incorrect arguments'}
         self.logger.debug('calling: %r with %r', operation, parameters)
+        if operation_type == 'query':
+            try:
+                data = target(**parameters)
+                response = {'error': None, 'data': data}
+            except Exception as e:
+                response = {'error': str(e)}
+            return response
         with self.handle_lock:
             self.operation_handle += 1
             handle = self.operation_handle

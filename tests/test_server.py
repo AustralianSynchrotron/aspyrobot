@@ -1,6 +1,6 @@
 import pytest
 from mock import MagicMock, call
-from aspyrobot.server import RobotServer, foreground_operation
+from aspyrobot.server import RobotServer, query_operation, foreground_operation
 from types import MethodType
 import time
 
@@ -32,12 +32,47 @@ def test_process_request_returns_error_for_invalid_operation(server):
     assert 'does not exist' in response['error']
 
 
+def test_process_request_returns_error_for_bad_function(server):
+    @foreground_operation
+    def method_missing_self(): pass
+    server.method_missing_self = MethodType(method_missing_self, server)
+    message = {'operation': 'method_missing_self'}
+    response = server.process_request(message)
+    assert 'invalid request' in response['error']
+
+
 def test_process_request_returns_error_for_incorrect_parameters(server):
+    @foreground_operation
     def calibrate(server, handle, target=None): pass
     server.calibrate = MethodType(calibrate, server)
     message = {'operation': 'calibrate', 'parameters': {'wrong_name': 'middle'}}
     response = server.process_request(message)
     assert 'invalid request' in response['error']
+
+
+def test_process_request_requires_operation_type(server):
+    # No operation decorator
+    def method_without_operation_type(server, handle): pass
+    server.operation = MethodType(method_without_operation_type, server)
+    message = {'operation': 'operation'}
+    response = server.process_request(message)
+    assert 'invalid request' in response['error']
+
+
+def test_query_operation(server):
+    @query_operation
+    def query(server): return {'x': 1}
+    server.query = MethodType(query, server)
+    response = server.process_request({'operation': 'query'})
+    assert response == {'error': None, 'data': {'x': 1}}
+
+
+def test_query_operation_with_error(server):
+    @query_operation
+    def query(server): raise Exception('Whoops!')
+    server.query = MethodType(query, server)
+    response = server.process_request({'operation': 'query'})
+    assert response == {'error': 'Whoops!'}
 
 
 def test_foreground_operation_requests_fail_if_busy(server):

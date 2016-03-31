@@ -55,9 +55,8 @@ def test_handle_calls_delegate_callbacks(client):
 
 
 def test_refresh(client):
-    raise Exception('TODO: Test is invalid due to server changes')
     client.run_operation = MagicMock()
-    client.run_operation.return_value = {'some_robot_attr': 1}
+    client.run_operation.return_value = {'data': {'some_robot_attr': 1}}
     client.refresh()
     assert client.run_operation.call_args == call('refresh')
     assert client.some_robot_attr == 1

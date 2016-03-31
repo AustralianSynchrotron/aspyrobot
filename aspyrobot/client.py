@@ -71,5 +71,5 @@ class RobotClient(object):
         return reply
 
     def refresh(self):
-        data = self.run_operation('refresh')
-        self.__dict__.update(data)
+        response = self.run_operation('refresh')
+        self.__dict__.update(response.get('data', {}))
