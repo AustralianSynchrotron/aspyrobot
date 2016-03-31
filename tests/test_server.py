@@ -1,12 +1,15 @@
+from aspyrobot.server import RobotServer, query_operation, foreground_operation
 import pytest
 from mock import MagicMock, call
-from aspyrobot.server import RobotServer, query_operation, foreground_operation
+import epics
 from types import MethodType
 import time
+from threading import Thread
 
 
 @pytest.fixture
-def server():
+def server(monkeypatch):
+    monkeypatch.setattr(epics.ca.CAThread, 'run', Thread.run)
     server = RobotServer(robot=None, logger=MagicMock())
     return server
 
