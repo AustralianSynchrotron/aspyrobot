@@ -12,16 +12,13 @@ def foreground_operation(func):
     @wraps(func)
     def wrapper(server, handle, *args, **kwargs):
         server.operation_update(handle, stage='start')
-        message = None
-        error = None
-        if not server.foreground_operation_lock.acquire(False):
-            error = 'busy'
-        else:
-            try:
-                message = func(server, handle, *args, **kwargs)
-            except Exception as e:
-                error = str(e)
-            server.foreground_operation_lock.release()
+        try:
+            message = func(server, handle, *args, **kwargs)
+            error = None
+        except Exception as e:
+            message = None
+            error = str(e)
+        server.foreground_operation_lock.release()
         server.operation_update(handle, stage='end', message=message, error=error)
     wrapper._operation_type = 'foreground'
     return wrapper
@@ -114,12 +111,25 @@ class RobotServer(object):
             return {'error': 'invalid request: incorrect arguments'}
         self.logger.debug('calling: %r with %r', operation, parameters)
         if operation_type == 'query':
-            try:
-                data = target(**parameters)
-                response = {'error': None, 'data': data}
-            except Exception as e:
-                response = {'error': str(e)}
-            return response
+            return self._process_query_request(target, parameters)
+        elif operation_type == 'foreground':
+            return self._process_foreground_request(target, parameters)
+        else:
+            return {'error': 'invalid request: unknown operation type'}
+
+
+    def _process_query_request(self, target, parameters):
+        try:
+            data = target(**parameters)
+            response = {'error': None, 'data': data}
+        except Exception as e:
+            response = {'error': str(e)}
+        return response
+
+
+    def _process_foreground_request(self, target, parameters):
+        if not self.foreground_operation_lock.acquire(False):
+            return {'error': 'busy'}
         with self.handle_lock:
             self.operation_handle += 1
             handle = self.operation_handle
@@ -127,6 +137,7 @@ class RobotServer(object):
         thread.daemon = True
         thread.start()
         return {'error': None, 'handle': handle}
+
 
     def on_robot_update(self, char_value, **_):
         try:

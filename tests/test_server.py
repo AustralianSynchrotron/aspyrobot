@@ -15,7 +15,7 @@ def server(monkeypatch):
 
 
 def test_process_request(server):
-    server.calibrate = MagicMock(return_value=None)
+    server.calibrate = MagicMock(_operation_type='foreground', return_value=None)
     message = {'operation': 'calibrate', 'parameters': {'target': 'middle'}}
     response = server.process_request(message)
     assert response['error'] is None
@@ -83,10 +83,8 @@ def test_foreground_operation_requests_fail_if_busy(server):
     def do_something(server, handle): pass
     server.do_something = MethodType(do_something, server)
     server.foreground_operation_lock.acquire(False)
-    server.process_request({'operation': 'do_something'})
-    server.publish_queue.get(timeout=.1)  # start update
-    end_update = server.publish_queue.get(timeout=.1)
-    assert 'busy' in end_update['error']
+    response = server.process_request({'operation': 'do_something'})
+    assert 'busy' in response['error']
     # Check foreground is still locked
     assert server.foreground_operation_lock.acquire(False) is False
 
@@ -108,6 +106,7 @@ def test_foreground_operation_sends_message(server):
     @foreground_operation
     def operation(server, handle):
         return 'all good'
+    server.foreground_operation_lock.acquire()
     operation(server, 1)
     server.publish_queue.get(timeout=.1)  # start update
     end_update = server.publish_queue.get(timeout=.1)
