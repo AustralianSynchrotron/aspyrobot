@@ -1,7 +1,15 @@
-from epics import Device
+from epics import PV, poll
+from time import time
 
 
-class Robot(Device):
+DELAY_TO_PROCESS = .3
+
+
+class RobotError(Exception):
+    """ Error on robot controller """
+
+
+class Robot(object):
 
     attrs = {
         'run_args': 'RA_CMD',
@@ -30,10 +38,48 @@ class Robot(Device):
     attrs_r = {v: k for k, v in attrs.items()}
 
     def __init__(self, prefix, **kwargs):
-        super(Robot, self).__init__(prefix, **kwargs)
         for attr, suffix in self.attrs.items():
-            self.add_pv(prefix + suffix, attr=attr, form='ctrl')
+            pv = PV(prefix + suffix, form='ctrl')
+            setattr(self, attr, pv)
+
+    def snapshot(self):
+        data = {}
+        for attr in self.attrs:
+            pv = getattr(self, attr)
+            if 'string' in pv.type or 'char' in pv.type:
+                value = pv.char_value
+            else:
+                value = pv.value
+            data[attr] = value
+        return data
 
     def execute(self, attr):
-        self.put(attr, 1, wait=True)
-        self.put(attr, 0)
+        pv = getattr(self, attr)
+        pv.put(1, wait=True)
+        pv.put(0)
+
+    def run_foreground_operation(self, name, args='', timeout=.5):
+        if not self.foreground_done.get():
+            raise RobotError('busy')
+        self.run_args.put(args)
+        poll(DELAY_TO_PROCESS)
+        self.generic_command.put(name)
+        self._wait_for_foreground_busy(timeout)
+        self._wait_for_foreground_free()
+        poll(DELAY_TO_PROCESS)
+        return self.task_result.get(as_string=True)
+
+    def _wait_for_foreground_busy(self, timeout):
+        t0 = time()
+        while time() < t0 + timeout:
+            if self.foreground_done.get() == 0:
+                break
+            poll(.01)
+        else:
+            raise RobotError('operation failed to start')
+
+    def _wait_for_foreground_free(self):
+        while True:
+            if self.foreground_done.get() == 1:
+                break
+            poll(.01)

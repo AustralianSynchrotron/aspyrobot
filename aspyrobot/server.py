@@ -117,7 +117,6 @@ class RobotServer(object):
         else:
             return {'error': 'invalid request: unknown operation type'}
 
-
     def _process_query_request(self, target, parameters):
         try:
             data = target(**parameters)
@@ -125,7 +124,6 @@ class RobotServer(object):
         except Exception as e:
             response = {'error': str(e)}
         return response
-
 
     def _process_foreground_request(self, target, parameters):
         if not self.foreground_operation_lock.acquire(False):
@@ -137,7 +135,6 @@ class RobotServer(object):
         thread.daemon = True
         thread.start()
         return {'error': None, 'handle': handle}
-
 
     def on_robot_update(self, char_value, **_):
         try:
