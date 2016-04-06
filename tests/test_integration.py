@@ -11,13 +11,13 @@ from aspyrobot.server import query_operation
 
 @pytest.yield_fixture
 def server():
-    epics.ca.create_context()
+    epics.ca.initialize_libca()
     server = RobotServer(robot=MagicMock(), logger=MagicMock())
     server.setup()
     yield server
     server.shutdown()
     time.sleep(.05)
-    epics.ca.destroy_context()
+    epics.ca.finalize_libca()
 
 
 @pytest.fixture
