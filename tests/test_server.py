@@ -1,4 +1,3 @@
-from threading import Thread
 from types import MethodType
 import time
 
@@ -9,11 +8,11 @@ import epics
 from aspyrobot.server import RobotServer, query_operation, foreground_operation
 
 
-@pytest.fixture
-def server(monkeypatch):
-    monkeypatch.setattr(epics.ca.CAThread, 'run', Thread.run)
-    server = RobotServer(robot=None, logger=MagicMock())
-    return server
+@pytest.yield_fixture
+def server():
+    epics.ca.create_context()
+    yield RobotServer(robot=None, logger=MagicMock())
+    epics.ca.destroy_context()
 
 
 def test_process_request(server):

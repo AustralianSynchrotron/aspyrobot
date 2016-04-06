@@ -1,7 +1,12 @@
 language: python
 python:
   - 3.5
-sudo: false
+sudo: required
+before_install:
+  - curl http://epics.nsls2.bnl.gov/debian/repo-key.pub | sudo apt-key add -
+  - echo "deb http://epics.nsls2.bnl.gov/debian/ wheezy main contrib" | sudo tee -a /etc/apt/sources.list
+  - sudo apt-get update
+  - sudo apt-get install epics-dev
 install:
   - pip install -r requirements.txt
   - pip install .

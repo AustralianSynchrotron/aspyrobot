@@ -1,16 +1,19 @@
 import pytest
 from mock import MagicMock, call
+import epics
 
 from aspyrobot.robot import Robot, RobotError
 
 
-@pytest.fixture
+@pytest.yield_fixture
 def robot():
+    epics.ca.create_context()
     robot = Robot('TEST_ROBOT:')
     for attr in robot.attrs:
         setattr(robot, attr, MagicMock())
     robot.foreground_done.get.return_value = 1
-    return robot
+    yield robot
+    epics.ca.destroy_context()
 
 
 def test_execute(robot):
