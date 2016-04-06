@@ -70,7 +70,7 @@ def test_run_operation_is_thread_safe(client):
             request = client._request_queue.get()
             client._reply_queue.put(request)
     Thread(target=processor, daemon=True).start()
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {operation: executor.submit(client.run_operation, operation)
                    for operation in range(10)}
         for operation, future in futures.items():
