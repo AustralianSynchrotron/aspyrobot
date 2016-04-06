@@ -1,6 +1,7 @@
-from aspyrobot.robot import Robot, RobotError
 import pytest
 from mock import MagicMock, call
+
+from aspyrobot.robot import Robot, RobotError
 
 
 @pytest.fixture

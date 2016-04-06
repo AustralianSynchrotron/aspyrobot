@@ -1,11 +1,13 @@
-import zmq
-from epics.ca import CAThread
-from six.moves.queue import Queue
 from threading import Lock
 from ast import literal_eval
-import inspect
 import logging
+import inspect
 from functools import wraps
+import time
+
+from six.moves.queue import Queue, Empty
+import zmq
+from epics.ca import CAThread
 
 
 def foreground_operation(func):
@@ -45,6 +47,7 @@ class RobotServer(object):
         self.foreground_operation_lock = Lock()
         self.operation_handle = 0
         self.handle_lock = Lock()
+        self._shutdown = False
 
     def setup(self):
         self.publisher_thread = CAThread(target=self.publisher,
@@ -60,6 +63,9 @@ class RobotServer(object):
         self.robot.PV('client_update').add_callback(self.on_robot_update)
         self.logger.debug('setup complete')
 
+    def shutdown(self):
+        self._shutdown = True
+
     def pv_callback(self, pvname, value, char_value, type, **kwargs):
         suffix = pvname.replace(self.robot._prefix, '')
         attr = self.robot.attrs_r[suffix]
@@ -70,19 +76,28 @@ class RobotServer(object):
     def publisher(self, update_addr):
         socket = self.context.socket(zmq.PUB)
         socket.bind(update_addr)
-        while True:
-            message = self.publish_queue.get()
+        while not self._shutdown:
+            try:
+                message = self.publish_queue.get(timeout=.01)
+            except Empty:
+                continue
             if not (len(message) == 1 and 'time' in message):
                 self.logger.debug('sending to client: %r', message)
             socket.send_json(message)
+        socket.close()
 
     def request_handler(self, request_addr):
         socket = self.context.socket(zmq.REP)
         socket.bind(request_addr)
-        while True:
-            message = socket.recv_json()
+        while not self._shutdown:
+            try:
+                message = socket.recv_json(flags=zmq.NOBLOCK)
+            except zmq.ZMQError:
+                time.sleep(.01)
+                continue
             response = self.process_request(message)
             socket.send_json(response)
+        socket.close()
 
     def process_request(self, message):
         self.logger.debug('client request: %r', message)
@@ -159,3 +174,7 @@ class RobotServer(object):
             'message': message,
             'error': error,
         })
+
+    @query_operation
+    def refresh(self):
+        return {}

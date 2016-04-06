@@ -1,8 +1,10 @@
-from aspyrobot.client import RobotClient
-import pytest
-from mock import MagicMock, call
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
+
+import pytest
+from mock import MagicMock, call
+
+from aspyrobot.client import RobotClient
 
 
 @pytest.fixture

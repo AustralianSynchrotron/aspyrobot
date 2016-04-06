@@ -1,10 +1,12 @@
-from aspyrobot.server import RobotServer, query_operation, foreground_operation
+from threading import Thread
+from types import MethodType
+import time
+
 import pytest
 from mock import MagicMock, call
 import epics
-from types import MethodType
-import time
-from threading import Thread
+
+from aspyrobot.server import RobotServer, query_operation, foreground_operation
 
 
 @pytest.fixture

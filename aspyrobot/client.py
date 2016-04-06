@@ -1,6 +1,7 @@
-import zmq
 from threading import Thread, Lock
+
 from six.moves.queue import Queue
+import zmq
 
 
 class RobotClient(object):

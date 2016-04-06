@@ -1,5 +1,6 @@
-from epics import PV, poll
 from time import time
+
+from epics import PV, poll
 
 
 DELAY_TO_PROCESS = .3
