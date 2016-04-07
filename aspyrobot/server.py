@@ -7,7 +7,7 @@ import time
 
 from six.moves.queue import Queue, Empty
 import zmq
-from epics.ca import CAThread
+from epics.ca import CAThread, withCA
 
 
 def foreground_operation(func):
@@ -49,6 +49,7 @@ class RobotServer(object):
         self.handle_lock = Lock()
         self._shutdown = False
 
+    @withCA
     def setup(self):
         self.publisher_thread = CAThread(target=self.publisher,
                                          args=(self.update_addr,))

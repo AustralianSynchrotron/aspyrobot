@@ -7,13 +7,11 @@ from aspyrobot.robot import Robot, RobotError
 
 @pytest.yield_fixture
 def robot():
-    epics.ca.initialize_libca()
     robot = Robot('TEST_ROBOT:')
     for attr in robot.attrs:
         setattr(robot, attr, MagicMock())
     robot.foreground_done.get.return_value = 1
     yield robot
-    epics.ca.finalize_libca()
 
 
 def test_execute(robot):

@@ -10,9 +10,7 @@ from aspyrobot.server import RobotServer, query_operation, foreground_operation
 
 @pytest.yield_fixture
 def server():
-    epics.ca.initialize_libca()
     yield RobotServer(robot=None, logger=MagicMock())
-    epics.ca.finalize_libca()
 
 
 def test_process_request(server):
