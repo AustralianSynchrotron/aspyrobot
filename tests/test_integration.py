@@ -3,7 +3,6 @@ import time
 
 import pytest
 from mock import MagicMock
-import epics
 
 from aspyrobot import RobotClient, RobotServer
 from aspyrobot.server import query_operation

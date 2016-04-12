@@ -3,9 +3,9 @@ import time
 
 import pytest
 from mock import MagicMock, call
-import epics
 
-from aspyrobot.server import RobotServer, query_operation, foreground_operation
+from aspyrobot.server import (RobotServer, query_operation, foreground_operation,
+                              background_operation)
 
 
 @pytest.yield_fixture
@@ -59,6 +59,29 @@ def test_process_request_requires_operation_type(server):
     message = {'operation': 'operation'}
     response = server.process_request(message)
     assert 'invalid request' in response['error']
+
+
+def test_process_request_handles_background_operation(server):
+    @background_operation
+    def operation(server, handle): return 'done'
+    server.operation = MethodType(operation, server)
+    response = server.process_request({'operation': 'operation'})
+    assert response['error'] is None
+    server.publish_queue.get(timeout=.1)  # start update
+    end_update = server.publish_queue.get(timeout=.1)
+    assert end_update['message'] == 'done'
+
+
+def test_process_background_request_ignores_operation_lock(server):
+    @background_operation
+    def operation(server, handle): return 'done'
+    server.operation = MethodType(operation, server)
+    server.foreground_operation_lock.acquire(False)
+    response = server.process_request({'operation': 'operation'})
+    assert response['error'] is None
+    server.publish_queue.get(timeout=.1)  # start update
+    end_update = server.publish_queue.get(timeout=.1)
+    assert end_update['message'] == 'done'
 
 
 def test_query_operation(server):

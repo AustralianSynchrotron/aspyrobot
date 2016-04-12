@@ -11,6 +11,10 @@ from epics.ca import CAThread, withCA
 
 
 def foreground_operation(func):
+    """
+    Decorator to create an operation method that should block other incoming
+    operations. Eg a calibration routine.
+    """
     @wraps(func)
     def wrapper(server, handle, *args, **kwargs):
         server.operation_update(handle, stage='start')
@@ -26,7 +30,31 @@ def foreground_operation(func):
     return wrapper
 
 
+def background_operation(func):
+    """
+    Decorator to create an operation method that runs in the background of the
+    SPEL application and does not interfere with foreground operations. Eg
+    updating a SPEL variable.
+    """
+    @wraps(func)
+    def wrapper(server, handle, *args, **kwargs):
+        server.operation_update(handle, stage='start')
+        try:
+            message = func(server, handle, *args, **kwargs)
+            error = None
+        except Exception as e:
+            message = None
+            error = str(e)
+        server.operation_update(handle, stage='end', message=message, error=error)
+    wrapper._operation_type = 'background'
+    return wrapper
+
+
 def query_operation(func):
+    """
+    Decorator to create an operation to query the state of the server. These
+    operations must return immediately.
+    """
     @wraps(func)
     def wrapper(server, *args, **kwargs):
         return func(server, *args, **kwargs)
@@ -130,6 +158,8 @@ class RobotServer(object):
             return self._process_query_request(target, parameters)
         elif operation_type == 'foreground':
             return self._process_foreground_request(target, parameters)
+        elif operation_type == 'background':
+            return self._process_background_request(target, parameters)
         else:
             return {'error': 'invalid request: unknown operation type'}
 
@@ -144,13 +174,23 @@ class RobotServer(object):
     def _process_foreground_request(self, target, parameters):
         if not self.foreground_operation_lock.acquire(False):
             return {'error': 'busy'}
-        with self.handle_lock:
-            self.operation_handle += 1
-            handle = self.operation_handle
-        thread = CAThread(target=target, args=(handle,), kwargs=parameters)
-        thread.daemon = True
+        handle = self._next_handle()
+        thread = CAThread(target=target, args=(handle,),
+                          kwargs=parameters, daemon=True)
         thread.start()
         return {'error': None, 'handle': handle}
+
+    def _process_background_request(self, target, parameters):
+        handle = self._next_handle()
+        thread = CAThread(target=target, args=(handle,),
+                          kwargs=parameters, daemon=True)
+        thread.start()
+        return {'error': None, 'handle': handle}
+
+    def _next_handle(self):
+        with self.handle_lock:
+            self.operation_handle += 1
+            return self.operation_handle
 
     def on_robot_update(self, char_value, **_):
         try:

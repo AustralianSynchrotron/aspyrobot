@@ -1,6 +1,5 @@
 import pytest
 from mock import MagicMock, call
-import epics
 
 from aspyrobot.robot import Robot, RobotError
 
