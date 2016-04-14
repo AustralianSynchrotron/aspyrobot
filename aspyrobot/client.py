@@ -1,6 +1,6 @@
 from threading import Thread, Lock
+from queue import Queue
 
-from six.moves.queue import Queue
 import zmq
 
 
@@ -11,24 +11,22 @@ class RobotClient(object):
         self.delegate = None
         self._request_addr = request_addr
         self._update_addr = update_addr
-        self._context = zmq.Context()
+        self._zmq_context = zmq.Context()
         self._request_queue = Queue()
         self._reply_queue = Queue()
         self._operation_lock = Lock()
 
     def setup(self):
         self._request_thread = Thread(target=self._request_monitor,
-                                      args=(self._request_addr,))
+                                      args=(self._request_addr,), daemon=True)
         self._update_thread = Thread(target=self._update_monitor,
-                                     args=(self._update_addr,))
-        self._request_thread.daemon = True
-        self._update_thread.daemon = True
+                                     args=(self._update_addr,), daemon=True)
         self._request_thread.start()
         self._update_thread.start()
         self.refresh()
 
     def _request_monitor(self, addr):
-        socket = self._context.socket(zmq.REQ)
+        socket = self._zmq_context.socket(zmq.REQ)
         socket.connect(addr)
         while True:
             self._handle_request(socket)  # Blocks between requests
@@ -40,7 +38,7 @@ class RobotClient(object):
         self._reply_queue.put(reply)
 
     def _update_monitor(self, addr):
-        socket = self._context.socket(zmq.SUB)
+        socket = self._zmq_context.socket(zmq.SUB)
         socket.connect(addr)
         socket.setsockopt(zmq.SUBSCRIBE, b'')
         while True:

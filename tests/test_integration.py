@@ -1,8 +1,8 @@
 from types import MethodType
 import time
+from unittest.mock import MagicMock
 
 import pytest
-from mock import MagicMock
 
 from aspyrobot import RobotClient, RobotServer
 from aspyrobot.server import query_operation

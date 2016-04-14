@@ -4,8 +4,8 @@ import logging
 import inspect
 from functools import wraps
 import time
+from queue import Queue, Empty
 
-from six.moves.queue import Queue, Empty
 import zmq
 from epics.ca import CAThread, withCA
 
@@ -18,13 +18,18 @@ def foreground_operation(func):
     @wraps(func)
     def wrapper(server, handle, *args, **kwargs):
         server.operation_update(handle, stage='start')
-        try:
-            message = func(server, handle, *args, **kwargs)
-            error = None
-        except Exception as e:
+        if (server.robot.foreground_done.value and
+            server._foreground_lock.acquire(False)):
+            try:
+                message = func(server, handle, *args, **kwargs)
+                error = None
+            except Exception as e:
+                message = None
+                error = str(e)
+            server._foreground_lock.release()
+        else:
+            error = 'busy'
             message = None
-            error = str(e)
-        server.foreground_operation_lock.release()
         server.operation_update(handle, stage='end', message=message, error=error)
     wrapper._operation_type = 'foreground'
     return wrapper
@@ -70,42 +75,40 @@ class RobotServer(object):
         self.logger = logger or logging.getLogger(__name__)
         self.request_addr = request_addr
         self.update_addr = update_addr
-        self.context = zmq.Context()
+        self._zmq_context = zmq.Context()
         self.publish_queue = Queue()
-        self.foreground_operation_lock = Lock()
-        self.operation_handle = 0
-        self.handle_lock = Lock()
-        self._shutdown = False
+        self._foreground_lock = Lock()
+        self._operation_handle = 0
+        self._handle_lock = Lock()
+        self._shutdown_requested = False
 
     @withCA
     def setup(self):
-        self.publisher_thread = CAThread(target=self.publisher,
-                                         args=(self.update_addr,))
-        self.publisher_thread.daemon = True
-        self.publisher_thread.start()
-        self.request_thread = CAThread(target=self.request_handler,
-                                       args=(self.request_addr,))
-        self.request_thread.daemon = True
-        self.request_thread.start()
+        self._publisher_thread = CAThread(target=self._publisher,
+                                          args=(self.update_addr,), daemon=True)
+        self._publisher_thread.start()
+        self._request_thread = CAThread(target=self._request_handler,
+                                        args=(self.request_addr,), daemon=True)
+        self._request_thread.start()
         for attr, pv in self.robot._pvs.items():
-            pv.add_callback(self.pv_callback)
-        self.robot.PV('client_update').add_callback(self.on_robot_update)
+            pv.add_callback(self._pv_callback)
+        self.robot.PV('client_update').add_callback(self._on_robot_update)
         self.logger.debug('setup complete')
 
     def shutdown(self):
-        self._shutdown = True
+        self._shutdown_requested = True
 
-    def pv_callback(self, pvname, value, char_value, type, **kwargs):
+    def _pv_callback(self, pvname, value, char_value, type, **kwargs):
         suffix = pvname.replace(self.robot._prefix, '')
         attr = self.robot.attrs_r[suffix]
         if type == 'ctrl_char':
             value = char_value
         self.publish_queue.put({attr: value})
 
-    def publisher(self, update_addr):
-        socket = self.context.socket(zmq.PUB)
+    def _publisher(self, update_addr):
+        socket = self._zmq_context.socket(zmq.PUB)
         socket.bind(update_addr)
-        while not self._shutdown:
+        while not self._shutdown_requested:
             try:
                 message = self.publish_queue.get(timeout=.01)
             except Empty:
@@ -115,20 +118,20 @@ class RobotServer(object):
             socket.send_json(message)
         socket.close()
 
-    def request_handler(self, request_addr):
-        socket = self.context.socket(zmq.REP)
+    def _request_handler(self, request_addr):
+        socket = self._zmq_context.socket(zmq.REP)
         socket.bind(request_addr)
-        while not self._shutdown:
+        while not self._shutdown_requested:
             try:
                 message = socket.recv_json(flags=zmq.NOBLOCK)
             except zmq.ZMQError:
                 time.sleep(.01)
                 continue
-            response = self.process_request(message)
+            response = self._process_request(message)
             socket.send_json(response)
         socket.close()
 
-    def process_request(self, message):
+    def _process_request(self, message):
         self.logger.debug('client request: %r', message)
         operation = message.get('operation')
         parameters = message.get('parameters', {})
@@ -156,10 +159,8 @@ class RobotServer(object):
         self.logger.debug('calling: %r with %r', operation, parameters)
         if operation_type == 'query':
             return self._process_query_request(target, parameters)
-        elif operation_type == 'foreground':
-            return self._process_foreground_request(target, parameters)
-        elif operation_type == 'background':
-            return self._process_background_request(target, parameters)
+        elif operation_type in {'foreground', 'background'}:
+            return self._process_operation_request(target, parameters)
         else:
             return {'error': 'invalid request: unknown operation type'}
 
@@ -171,16 +172,7 @@ class RobotServer(object):
             response = {'error': str(e)}
         return response
 
-    def _process_foreground_request(self, target, parameters):
-        if not self.foreground_operation_lock.acquire(False):
-            return {'error': 'busy'}
-        handle = self._next_handle()
-        thread = CAThread(target=target, args=(handle,),
-                          kwargs=parameters, daemon=True)
-        thread.start()
-        return {'error': None, 'handle': handle}
-
-    def _process_background_request(self, target, parameters):
+    def _process_operation_request(self, target, parameters):
         handle = self._next_handle()
         thread = CAThread(target=target, args=(handle,),
                           kwargs=parameters, daemon=True)
@@ -188,11 +180,11 @@ class RobotServer(object):
         return {'error': None, 'handle': handle}
 
     def _next_handle(self):
-        with self.handle_lock:
-            self.operation_handle += 1
-            return self.operation_handle
+        with self._handle_lock:
+            self._operation_handle += 1
+            return self._operation_handle
 
-    def on_robot_update(self, char_value, **_):
+    def _on_robot_update(self, char_value, **_):
         try:
             message = literal_eval(char_value)
         except SyntaxError:

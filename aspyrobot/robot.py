@@ -2,12 +2,10 @@ from time import time
 
 from epics import PV, poll
 
+from .exceptions import RobotError
+
 
 DELAY_TO_PROCESS = .3
-
-
-class RobotError(Exception):
-    """ Error on robot controller """
 
 
 class Robot(object):

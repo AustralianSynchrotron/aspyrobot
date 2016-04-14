@@ -1,5 +1,5 @@
 import pytest
-from mock import MagicMock, call
+from unittest.mock import MagicMock, call
 
 from aspyrobot.robot import Robot, RobotError
 
