@@ -10,7 +10,7 @@ from aspyrobot.server import (RobotServer, query_operation, foreground_operation
 
 @pytest.yield_fixture
 def server():
-    robot = MagicMock()
+    robot = MagicMock(_prefix='MOCK_ROBOT:')
     robot.foreground_done.value = 1
     yield RobotServer(robot=robot, logger=MagicMock())
 
@@ -175,3 +175,30 @@ def test_on_robot_update_with_unexpected_attributes(server):
     server.update_some_attr = update_some_attr
     server._on_robot_update("{'set': 'some_attr', 'value': 5, 'extra': 'info'}")
     assert server.logger.error.called is True
+
+
+def test_pv_callback_creates_attr_message(server):
+    server.robot.attrs_r = {'MOTOR_STATUS': 'motors_on'}
+    server._pv_callback(pvname='MOCK_ROBOT:MOTOR_STATUS', value=1,
+                        char_value='1', type='ctrl_enum')
+    update = server.publish_queue.get()
+    assert update['type'] == 'values'
+    assert update['data'] == {'motors_on': 1}
+
+
+def test_pv_callback_uses_char_value_for_char_arrays(server):
+    server.robot.attrs_r = {'CLIENTUPDATE_MON': 'client_update'}
+    server._pv_callback(pvname='MOCK_ROBOT:CLIENTUPDATE_MON', value=None,
+                        char_value='stringy value', type='ctrl_char')
+    update = server.publish_queue.get()
+    assert update['type'] == 'values'
+    assert update['data'] == {'client_update': 'stringy value'}
+
+
+def test_pv_callback_uses_char_value_for_strings(server):
+    server.robot.attrs_r = {'MODEL_MON': 'model'}
+    server._pv_callback(pvname='MOCK_ROBOT:MODEL_MON', value=None,
+                        char_value='G6-553S-II', type='time_string')
+    update = server.publish_queue.get()
+    assert update['type'] == 'values'
+    assert update['data'] == {'model': 'G6-553S-II'}

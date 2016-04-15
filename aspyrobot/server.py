@@ -99,11 +99,12 @@ class RobotServer(object):
         self._shutdown_requested = True
 
     def _pv_callback(self, pvname, value, char_value, type, **kwargs):
+        # TODO: Too tightly coupled with robot class
         suffix = pvname.replace(self.robot._prefix, '')
         attr = self.robot.attrs_r[suffix]
-        if type == 'ctrl_char':
+        if 'char' in type or 'string' in type:
             value = char_value
-        self.publish_queue.put({attr: value})
+        self.values_update({attr: value})
 
     def _publisher(self, update_addr):
         socket = self._zmq_context.socket(zmq.PUB)
@@ -207,6 +208,10 @@ class RobotServer(object):
             'message': message,
             'error': error,
         })
+
+    def values_update(self, update):
+        self.publish_queue.put({'type': 'values', 'data': update})
+
 
     @query_operation
     def refresh(self):
