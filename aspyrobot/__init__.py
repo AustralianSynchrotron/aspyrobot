@@ -2,6 +2,6 @@ from .robot import Robot
 from .server import RobotServer
 from .client import RobotClient
 
-__version__ = '0.8.0'
+__version__ = '0.9.0'
 
 __all__ = [Robot, RobotServer, RobotClient]

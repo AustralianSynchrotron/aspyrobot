@@ -5,9 +5,12 @@ import inspect
 from functools import wraps
 import time
 from queue import Queue, Empty
+import traceback
 
 import zmq
 from epics.ca import CAThread, withCA
+
+from .exceptions import RobotError
 
 
 def foreground_operation(func):
@@ -20,17 +23,12 @@ def foreground_operation(func):
         server.operation_update(handle, stage='start')
         if (server.robot.foreground_done.value and
             server._foreground_lock.acquire(False)):
-            try:
-                message = func(server, handle, *args, **kwargs)
-                error = None
-            except Exception as e:
-                message = None
-                error = str(e)
+            data, error = safe_run_operation(server, func, handle, *args, **kwargs)
             server._foreground_lock.release()
         else:
             error = 'busy'
-            message = None
-        server.operation_update(handle, stage='end', message=message, error=error)
+            data = None
+        server.operation_update(handle, stage='end', message=data, error=error)
     wrapper._operation_type = 'foreground'
     return wrapper
 
@@ -44,13 +42,8 @@ def background_operation(func):
     @wraps(func)
     def wrapper(server, handle, *args, **kwargs):
         server.operation_update(handle, stage='start')
-        try:
-            message = func(server, handle, *args, **kwargs)
-            error = None
-        except Exception as e:
-            message = None
-            error = str(e)
-        server.operation_update(handle, stage='end', message=message, error=error)
+        data, error = safe_run_operation(server, func, handle, *args, **kwargs)
+        server.operation_update(handle, stage='end', message=data, error=error)
     wrapper._operation_type = 'background'
     return wrapper
 
@@ -62,9 +55,23 @@ def query_operation(func):
     """
     @wraps(func)
     def wrapper(server, *args, **kwargs):
-        return func(server, *args, **kwargs)
+        data, error = safe_run_operation(server, func, *args, **kwargs)
+        return {'error': error, 'data': data}
     wrapper._operation_type = 'query'
     return wrapper
+
+
+def safe_run_operation(server, func, *args, **kwargs):
+    data, error = None, None
+    try:
+        data = func(server, *args, **kwargs)
+    except RobotError as e:
+        error = str(e)
+        server.logger.error(error)
+    except Exception as e:
+        error = str(e)
+        server.logger.error(traceback.format_exc())
+    return data, error
 
 
 class RobotServer(object):
@@ -151,34 +158,22 @@ class RobotServer(object):
             if operation_type == 'query':
                 sig.bind(**parameters)
             else:
-                # Must accept a handle argument
-                sig.bind(None, **parameters)
+                sig.bind(None, **parameters)  # Must accept a handle argument
         except (ValueError, TypeError):
             self.logger.error('invalid arguments for operation %r: %r',
                               operation, parameters)
             return {'error': 'invalid request: incorrect arguments'}
         self.logger.debug('calling: %r with %r', operation, parameters)
         if operation_type == 'query':
-            return self._process_query_request(target, parameters)
+            return target(**parameters)
         elif operation_type in {'foreground', 'background'}:
-            return self._process_operation_request(target, parameters)
+            handle = self._next_handle()
+            thread = CAThread(target=target, args=(handle,),
+                              kwargs=parameters, daemon=True)
+            thread.start()
+            return {'error': None, 'handle': handle}
         else:
             return {'error': 'invalid request: unknown operation type'}
-
-    def _process_query_request(self, target, parameters):
-        try:
-            data = target(**parameters)
-            response = {'error': None, 'data': data}
-        except Exception as e:
-            response = {'error': str(e)}
-        return response
-
-    def _process_operation_request(self, target, parameters):
-        handle = self._next_handle()
-        thread = CAThread(target=target, args=(handle,),
-                          kwargs=parameters, daemon=True)
-        thread.start()
-        return {'error': None, 'handle': handle}
 
     def _next_handle(self):
         with self._handle_lock:

@@ -6,6 +6,7 @@ import pytest
 
 from aspyrobot.server import (RobotServer, query_operation, foreground_operation,
                               background_operation)
+from aspyrobot.exceptions import RobotError
 
 
 @pytest.yield_fixture
@@ -104,10 +105,18 @@ def test_query_operation(server):
 
 def test_query_operation_with_error(server):
     @query_operation
-    def query(server): raise Exception('Whoops!')
+    def query(server): raise RobotError('Whoops!')
     server.query = MethodType(query, server)
     response = server._process_request({'operation': 'query'})
-    assert response == {'error': 'Whoops!'}
+    assert response['error'] == 'Whoops!'
+    assert server.logger.error.call_args == call('Whoops!')
+
+
+def test_query_operation_with_general_exception_logs_traceback(server):
+    @query_operation
+    def bad_operation(server): raise Exception('Bad bad happened')
+    bad_operation(server)
+    assert 'Traceback' in server.logger.error.call_args[0][0]
 
 
 def test_foreground_operation_requests_fail_if_foreground_locked(server):
@@ -132,14 +141,14 @@ def test_foreground_operation_requests_fail_if_foreground_busy(server):
     assert 'busy' in end_update['error']
 
 
-def test_foreground_operation_with_error(server):
+def test_foreground_operation_with_robot_error(server):
     @foreground_operation
-    def bad_operation(server, handle):
-        raise Exception('Bad bad happened')
+    def bad_operation(server, handle): raise RobotError('Bad bad happened')
     server.bad_operation = MethodType(bad_operation, server)
     server._process_request({'operation': 'bad_operation'})
     end_update = list(operation_updates(server))[-1]
     assert 'Bad bad happened' in end_update['error']
+    assert server.logger.error.call_args == call('Bad bad happened')
     # Check foreground is unlocked
     assert server._foreground_lock.acquire(False) is True
 
@@ -151,6 +160,29 @@ def test_foreground_operation_sends_message(server):
     operation(server, 1)
     end_update = list(operation_updates(server))[-1]
     assert end_update['message'] == 'all good'
+
+
+def test_foreground_operation_with_general_exception_logs_traceback(server):
+    @foreground_operation
+    def bad_operation(server, handle): raise Exception('Bad bad happened')
+    bad_operation(server, handle=1)
+    assert 'Traceback' in server.logger.error.call_args[0][0]
+
+
+def test_background_request_with_robot_error(server):
+    @background_operation
+    def bad_operation(server, handle): raise RobotError('Bad bad happened')
+    bad_operation(server, handle=1)
+    end_update = list(operation_updates(server))[-1]
+    assert end_update['error'] == 'Bad bad happened'
+    assert server.logger.error.call_args == call('Bad bad happened')
+
+
+def test_background_operation_with_general_exception_logs_traceback(server):
+    @background_operation
+    def bad_operation(server, handle): raise Exception('Bad bad happened')
+    bad_operation(server, handle=1)
+    assert 'Traceback' in server.logger.error.call_args[0][0]
 
 
 def test_on_robot_update(server):
