@@ -97,9 +97,10 @@ class RobotServer(object):
         self._request_thread = CAThread(target=self._request_handler,
                                         args=(self.request_addr,), daemon=True)
         self._request_thread.start()
-        for attr, pv in self.robot._pvs.items():
+        for attr in self.robot.attrs:
+            pv = getattr(self.robot, attr)
             pv.add_callback(self._pv_callback)
-        self.robot.PV('client_update').add_callback(self._on_robot_update)
+        self.robot.client_update.add_callback(self._on_robot_update)
         self.logger.debug('setup complete')
 
     def shutdown(self):
@@ -121,7 +122,8 @@ class RobotServer(object):
                 message = self.publish_queue.get(timeout=.01)
             except Empty:
                 continue
-            if not (len(message) == 1 and 'time' in message):
+            data = message.get('data', {})
+            if not (len(data) == 1 and 'time' in data):  # Don't log time messages
                 self.logger.debug('sending to client: %r', message)
             socket.send_json(message)
         socket.close()
@@ -206,7 +208,6 @@ class RobotServer(object):
 
     def values_update(self, update):
         self.publish_queue.put({'type': 'values', 'data': update})
-
 
     @query_operation
     def refresh(self):

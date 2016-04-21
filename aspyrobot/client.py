@@ -3,6 +3,8 @@ from queue import Queue
 
 import zmq
 
+from .exceptions import RobotError
+
 
 class RobotClient(object):
 
@@ -15,6 +17,7 @@ class RobotClient(object):
         self._request_queue = Queue()
         self._reply_queue = Queue()
         self._operation_lock = Lock()
+        self._operation_callbacks = {}
 
     def setup(self):
         self._request_thread = Thread(target=self._request_monitor,
@@ -48,6 +51,13 @@ class RobotClient(object):
         message = socket.recv_json()
         if message['type'] == 'values':
             self._handle_values(message.get('data', {}))
+        elif message['type'] == 'operation':
+            with self._operation_lock:
+                callback = self._operation_callbacks.get(message['handle'])
+            if callback:
+                callback(handle=message.get('handle'),
+                         stage=message.get('stage'),
+                         message=message.get('message'))
 
     def _handle_values(self, values):
         for attr, value in values.items():
@@ -60,15 +70,29 @@ class RobotClient(object):
                 if callback is not None:
                     callback(value)
 
-    def run_operation(self, operation, **parameters):
+    def run_query(self, operation, **parameters):
         with self._operation_lock:
             self._request_queue.put({
                 'operation': operation,
                 'parameters': parameters,
             })
             reply = self._reply_queue.get()
-        return reply
+        if reply.get('error') is not None:
+            raise RobotError(reply['error'])
+        return reply.get('data', {})
+
+    def run_operation(self, operation, callback=None, **parameters):
+        with self._operation_lock:
+            self._request_queue.put({'operation': operation,
+                                     'parameters': parameters})
+            reply = self._reply_queue.get()
+            if reply.get('error') is not None:
+                raise ValueError(reply['error'])  # Invalid operation or parameters
+            if callback:
+                handle = reply['handle']
+                self._operation_callbacks[handle] = callback
+            return reply
 
     def refresh(self):
-        response = self.run_operation('refresh')
-        self.__dict__.update(response.get('data', {}))
+        data = self.run_query('refresh')
+        self.__dict__.update(data)

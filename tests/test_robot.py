@@ -32,7 +32,7 @@ def test_run_foreground_operation_sets_args_and_issues_command(robot):
     result = robot.run_foreground_operation('calibrate', 'l 0')
     assert robot.run_args.put.call_args == call('l 0')
     assert robot.generic_command.put.call_args == call('calibrate')
-    assert result == 'ok done'
+    assert result == 'done'
 
 
 def test_run_foreground_operation_raises_exception_if_op_doesnt_start(robot):

@@ -1,6 +1,4 @@
-from threading import Thread
-from concurrent.futures import ThreadPoolExecutor
-from unittest.mock import MagicMock, call
+from unittest.mock import Mock, MagicMock, call
 
 import pytest
 
@@ -13,7 +11,7 @@ def client():
 
 
 def test_run_operation(client):
-    expected_response = {'error': None}
+    expected_response = {'error': None, 'handle': 1}
     client._reply_queue.put(expected_response)
     expected_request = {'operation': 'set_lid', 'parameters': {'value': 1}}
     assert client.run_operation('set_lid', value=1) == expected_response
@@ -57,22 +55,30 @@ def test_handle_calls_delegate_callbacks(client):
 
 
 def test_refresh(client):
-    client.run_operation = MagicMock()
-    client.run_operation.return_value = {'data': {'some_robot_attr': 1}}
+    client.run_query = MagicMock()
+    client.run_query.return_value = {'some_robot_attr': 1}
     client.refresh()
-    assert client.run_operation.call_args == call('refresh')
+    assert client.run_query.call_args == call('refresh')
     assert client.some_robot_attr == 1
 
 
-def test_run_operation_is_thread_safe(client):
-    def processor():
-        while True:
-            request = client._request_queue.get()
-            client._reply_queue.put(request)
-    Thread(target=processor, daemon=True).start()
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {operation: executor.submit(client.run_operation, operation)
-                   for operation in range(10)}
-        for operation, future in futures.items():
-            response = future.result()
-            assert response['operation'] == operation
+def test_run_operation_adds_callback(client):
+    callback = Mock()
+    client._reply_queue.put({'error': None, 'handle': 1})
+    client.run_operation('set_lid', value=1, callback=callback)
+    assert client._operation_callbacks[1] == callback
+
+
+def test_operation_callbacks(client):
+    callback = Mock()
+    client._operation_callbacks[1] = callback
+    message = {
+        'type': 'operation',
+        'handle': 1,
+        'stage': 'update',
+        'message': 'test',
+    }
+    mock_socket = MagicMock()
+    mock_socket.recv_json.return_value = message
+    client._handle_update(mock_socket)
+    assert callback.call_args == call(handle=1, stage='update', message='test')

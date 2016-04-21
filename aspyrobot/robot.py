@@ -37,6 +37,7 @@ class Robot(object):
     attrs_r = {v: k for k, v in attrs.items()}
 
     def __init__(self, prefix, **kwargs):
+        self._prefix = prefix
         for attr, suffix in self.attrs.items():
             pv = PV(prefix + suffix, form='ctrl')
             setattr(self, attr, pv)
@@ -60,13 +61,18 @@ class Robot(object):
     def run_foreground_operation(self, name, args='', timeout=.5):
         if not self.foreground_done.get():
             raise RobotError('busy')
-        self.run_args.put(args)
+        self.run_args.put(args or '\0')
         poll(DELAY_TO_PROCESS)
         self.generic_command.put(name)
         self._wait_for_foreground_busy(timeout)
         self._wait_for_foreground_free()
         poll(DELAY_TO_PROCESS)
-        return self.task_result.get(as_string=True)
+        # TODO: Check for foreground_error
+        result = self.task_result.get(as_string=True)
+        status, _, message = result.partition(' ')
+        if status.lower() not in {'ok', 'normal'}:  # TODO
+            raise RobotError(message)
+        return message
 
     def _wait_for_foreground_busy(self, timeout):
         t0 = time()
