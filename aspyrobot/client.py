@@ -57,7 +57,8 @@ class RobotClient(object):
             if callback:
                 callback(handle=message.get('handle'),
                          stage=message.get('stage'),
-                         message=message.get('message'))
+                         message=message.get('message'),
+                         error=message.get('error'))
 
     def _handle_values(self, values):
         for attr, value in values.items():

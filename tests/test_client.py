@@ -77,8 +77,10 @@ def test_operation_callbacks(client):
         'handle': 1,
         'stage': 'update',
         'message': 'test',
+        'error': 'bad bad happened',
     }
     mock_socket = MagicMock()
     mock_socket.recv_json.return_value = message
     client._handle_update(mock_socket)
-    assert callback.call_args == call(handle=1, stage='update', message='test')
+    assert callback.call_args == call(handle=1, stage='update',
+                                      message='test', error='bad bad happened')
