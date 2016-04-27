@@ -7,9 +7,17 @@ from .exceptions import RobotError
 
 
 class RobotClient(object):
+    """
+    ``RobotClient``\ s are used to remotely monitor the robot and initiate
+    operations.
 
-    def __init__(self, request_addr='tcp://localhost:8876',
-                 update_addr='tcp://localhost:8877'):
+    Args:
+        update_addr: Address of the ``RobotServer`` update socket.
+        request_addr: Address of the ``RobotServer`` operation request socket.
+
+    """
+    def __init__(self, update_addr='tcp://localhost:2000',
+                 request_addr='tcp://localhost:2001'):
         self.delegate = None
         self._request_addr = request_addr
         self._update_addr = update_addr
@@ -83,6 +91,17 @@ class RobotClient(object):
         return reply.get('data', {})
 
     def run_operation(self, operation, callback=None, **parameters):
+        """
+        Run an operation on the ``RobotServer``.
+
+        Args:
+            operation (str): Name of the ``RobotServer`` method to run.
+            **parameters: keyword arguments to be passed to the operation method.
+            callback: Callback function to receive updates about the operation.
+                Should handle arguments:
+                ``handle``, ``stage``, ``message``, ``error``
+
+        """
         with self._operation_lock:
             self._request_queue.put({'operation': operation,
                                      'parameters': parameters})

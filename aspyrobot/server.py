@@ -75,9 +75,23 @@ def safe_run_operation(server, func, *args, **kwargs):
 
 
 class RobotServer(object):
+    """
+    The ``RobotServer`` monitors the state of the robot and processes operation
+    requests from ``RobotClient``\ s. The robot state is broadcast to clients via a
+    Zero-MQ publish/subscribe channel. Operation requests are received via a
+    seperate request/reply channel.
 
-    def __init__(self, robot, logger=None, request_addr='tcp://*:8876',
-                 update_addr='tcp://*:8877'):
+    Args:
+        robot (Robot): An instance of the aspyrobot.Robot class.
+        logger: A logging.Logger object.
+        update_addr: An address to create a Zero-MQ socket to broadcast robot
+            state updates to clients.
+        request_addr: An address to create a Zero-MQ socket to receive operation
+            requests from clients.
+
+    """
+    def __init__(self, robot, logger=None, update_addr='tcp://*:2000',
+                 request_addr='tcp://*:2001'):
         self.robot = robot
         self.logger = logger or logging.getLogger(__name__)
         self.request_addr = request_addr

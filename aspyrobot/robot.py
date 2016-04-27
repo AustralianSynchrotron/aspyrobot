@@ -9,7 +9,13 @@ DELAY_TO_PROCESS = .3
 
 
 class Robot(object):
+    """
+    The ``Robot`` class creates EPICS connections to the robot IOC. It is
+    intended to be supplied to ``RobotServer`` and not used directly.
 
+    Args:
+        prefix (str): Prefix of the robot IOC PVs. Eg ``'SR03ID01:'``.
+    """
     attrs = {
         'run_args': 'RA_CMD',
         'task_message': 'TASKMSG_MON',
@@ -36,7 +42,7 @@ class Robot(object):
     }
     attrs_r = {v: k for k, v in attrs.items()}
 
-    def __init__(self, prefix, **kwargs):
+    def __init__(self, prefix):
         self._prefix = prefix
         for attr, suffix in self.attrs.items():
             pv = PV(prefix + suffix, form='ctrl')
