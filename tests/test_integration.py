@@ -10,7 +10,9 @@ from aspyrobot.server import query_operation
 
 @pytest.yield_fixture
 def server():
-    server = RobotServer(robot=MagicMock(), logger=MagicMock())
+    robot = MagicMock()
+    robot.snapshot.return_value = {}
+    server = RobotServer(robot=robot, logger=MagicMock())
     server.setup()
     yield server
     server.shutdown()

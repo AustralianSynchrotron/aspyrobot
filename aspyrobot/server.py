@@ -211,4 +211,4 @@ class RobotServer(object):
 
     @query_operation
     def refresh(self):
-        return {}
+        return self.robot.snapshot()
