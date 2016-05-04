@@ -17,6 +17,7 @@ class Robot(object):
         prefix (str): Prefix of the robot IOC PVs. Eg ``'SR03ID01:'``.
     """
     attrs = {
+        'status': 'RSTATUS_MON',
         'run_args': 'RA_CMD',
         'task_message': 'TASKMSG_MON',
         'task_progress': 'TASKPROG_MON',

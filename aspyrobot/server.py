@@ -226,3 +226,16 @@ class RobotServer(object):
     @query_operation
     def refresh(self):
         return self.robot.snapshot()
+
+    @background_operation
+    def clear(self, handle, level):
+        """
+        Clear robot state.
+
+        Args:
+            level (str): `'status`' or `'all'`
+
+        """
+        self.logger.warning('clear: %r', level)
+        message = self.robot.run_foreground_operation('Clear', level)
+        return message

@@ -84,3 +84,10 @@ def test_operation_callbacks(client):
     client._handle_update(mock_socket)
     assert callback.call_args == call(handle=1, stage='update',
                                       message='test', error='bad bad happened')
+
+
+def test_clear(client):
+    client.run_operation = MagicMock()
+    client.clear('status')
+    assert client.run_operation.call_args == call('clear', level='status',
+                                                  callback=None)

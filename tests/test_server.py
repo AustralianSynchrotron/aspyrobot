@@ -234,3 +234,9 @@ def test_pv_callback_uses_char_value_for_strings(server):
     update = server.publish_queue.get()
     assert update['type'] == 'values'
     assert update['data'] == {'model': 'G6-553S-II'}
+
+
+def test_clear(server):
+    server.robot.run_foreground_operation.return_value = 'ok'
+    server.clear(1, 'all')
+    assert server.robot.run_foreground_operation.call_args == call('Clear', 'all')

@@ -25,6 +25,12 @@ For example::
                 raise RobotError('Motors must be on')
             self.robot.run_foreground_operation('MountSample', sample)
 
+Start the server as normal::
+
+    >>> from aspyrobot import Robot
+    >>> server = SAMRobotServer(Robot('SR08ID01ROB01:'))
+    >>> server.setup()
+
 Then to execute the operation::
 
     >>> robot = RobotClient()

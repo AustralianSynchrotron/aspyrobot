@@ -15,6 +15,20 @@ class RobotClient(object):
         update_addr: Address of the ``RobotServer`` update socket.
         request_addr: Address of the ``RobotServer`` operation request socket.
 
+    Attributes:
+        status (int): Robot status flag
+        task_message (str): Messages about current foreground task
+        task_progress (str): Current task progress
+        model (str): Model of the robot
+        time (str): Time on robot controller (can be used as a heartbeat monitor)
+        at_home (int): Whether the robot is in the home position
+        motors_on (int): Whether the robot motors are on
+        motors_on_command (int): Value of motors on instruction
+        toolset (codes.Toolset): Current toolset the robot is in
+        foreground_done (int): Whether the foreground is available
+        safety_gate (int): Is the safety gate open
+        closest_point (int): Closest labelled point to the robot's coordinates
+
     """
     def __init__(self, update_addr='tcp://localhost:2000',
                  request_addr='tcp://localhost:2001'):
@@ -116,3 +130,14 @@ class RobotClient(object):
     def refresh(self):
         data = self.run_query('refresh')
         self.__dict__.update(data)
+
+    def clear(self, level, callback=None):
+        """
+        Clear the robot state.
+
+        Args:
+            level (str): 'status' or 'all'
+            callback: Callback function to receive operation updates
+
+        """
+        return self.run_operation('clear', level=level, callback=callback)
