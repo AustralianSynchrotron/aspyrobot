@@ -19,25 +19,25 @@ def test_execute(robot):
     assert robot.calibrate.put.call_args_list == [call(1, wait=True), call(0)]
 
 
-def test_run_foreground_operation_raises_exception_if_busy(robot):
+def test_run_task_raises_exception_if_busy(robot):
     robot.foreground_done.get.return_value = 0
     with pytest.raises(RobotError) as exception:
-        robot.run_foreground_operation('calibrate', 'l 0')
+        robot.run_task('calibrate', 'l 0')
     assert 'busy' in str(exception)
 
 
-def test_run_foreground_operation_sets_args_and_issues_command(robot):
+def test_run_task_sets_args_and_issues_command(robot):
     robot.foreground_done.get.side_effect = [1, 0, 1]
     robot.task_result.get.return_value = 'ok done'
-    result = robot.run_foreground_operation('calibrate', 'l 0')
-    assert robot.run_args.put.call_args == call('l 0')
+    result = robot.run_task('calibrate', 'l 0')
+    assert robot.task_args.put.call_args == call('l 0')
     assert robot.generic_command.put.call_args == call('calibrate')
     assert result == 'done'
 
 
-def test_run_foreground_operation_raises_exception_if_op_doesnt_start(robot):
+def test_run_task_raises_exception_if_op_doesnt_start(robot):
     with pytest.raises(RobotError) as exception:
-        robot.run_foreground_operation('calibrate', 'l 0', timeout=0.1)
+        robot.run_task('calibrate', 'l 0', timeout=0.1)
     assert 'failed to start' in str(exception)
 
 

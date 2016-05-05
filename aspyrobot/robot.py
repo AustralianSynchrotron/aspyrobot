@@ -15,10 +15,12 @@ class Robot(object):
 
     Args:
         prefix (str): Prefix of the robot IOC PVs. Eg ``'SR03ID01:'``.
+
     """
     attrs = {
         'status': 'RSTATUS_MON',
-        'run_args': 'RA_CMD',
+        'current_task': 'COP_MON',
+        'task_args': 'RA_CMD',
         'task_message': 'TASKMSG_MON',
         'task_progress': 'TASKPROG_MON',
         'task_result': 'RRESULT_MON',
@@ -65,10 +67,10 @@ class Robot(object):
         pv.put(1, wait=True)
         pv.put(0)
 
-    def run_foreground_operation(self, name, args='', timeout=.5):
+    def run_task(self, name, args='', timeout=.5):
         if not self.foreground_done.get():
             raise RobotError('busy')
-        self.run_args.put(args or '\0')
+        self.task_args.put(args or '\0')
         poll(DELAY_TO_PROCESS)
         self.generic_command.put(name)
         self._wait_for_foreground_busy(timeout)

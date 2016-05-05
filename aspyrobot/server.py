@@ -237,5 +237,4 @@ class RobotServer(object):
 
         """
         self.logger.warning('clear: %r', level)
-        message = self.robot.run_foreground_operation('Clear', level)
-        return message
+        self.robot.generic_command.put('ResetRobotStatus')

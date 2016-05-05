@@ -23,7 +23,7 @@ For example::
         def mount_sample(self, handle, sample):
             if self.robot.motors_on.value != 1:
                 raise RobotError('Motors must be on')
-            self.robot.run_foreground_operation('MountSample', sample)
+            self.robot.run_task('MountSample', sample)
 
 Start the server as normal::
 

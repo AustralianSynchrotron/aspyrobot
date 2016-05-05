@@ -17,6 +17,7 @@ class RobotClient(object):
 
     Attributes:
         status (int): Robot status flag
+        current_task (str): Current operation the robot is performing.
         task_message (str): Messages about current foreground task
         task_progress (str): Current task progress
         model (str): Model of the robot
