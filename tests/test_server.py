@@ -239,4 +239,5 @@ def test_pv_callback_uses_char_value_for_strings(server):
 def test_clear(server):
     server.robot.run_task.return_value = 'ok'
     server.clear(1, 'all')
-    assert server.robot.generic_command.put.call_args == call('ResetRobotStatus')
+    expected_call = call('ResetRobotStatus', 'all')
+    assert server.robot.generic_command.put.call_args == expected_call

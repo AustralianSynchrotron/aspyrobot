@@ -237,4 +237,4 @@ class RobotServer(object):
 
         """
         self.logger.warning('clear: %r', level)
-        self.robot.generic_command.put('ResetRobotStatus')
+        self.robot.generic_command.put('ResetRobotStatus', level)
