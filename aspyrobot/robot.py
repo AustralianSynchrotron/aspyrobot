@@ -83,6 +83,12 @@ class Robot(object):
             raise RobotError(message)
         return message
 
+    def run_background_task(self, name, args=''):
+        self.task_args.put(args or '\0')
+        poll(DELAY_TO_PROCESS)
+        self.generic_command.put(name)
+        poll(DELAY_TO_PROCESS)
+
     def _wait_for_foreground_busy(self, timeout):
         t0 = time()
         while time() < t0 + timeout:
