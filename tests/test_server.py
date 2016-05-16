@@ -240,4 +240,4 @@ def test_clear(server):
     server.robot.run_task.return_value = 'ok'
     server.clear(1, 'all')
     expected_call = call('ResetRobotStatus', 'all')
-    assert server.robot.generic_command.put.call_args == expected_call
+    assert server.robot.run_background_task.call_args == expected_call
