@@ -52,18 +52,31 @@ class RobotClient(object):
         self.refresh()
 
     def _request_monitor(self, addr):
+        """
+        Set up a request socket to the server and transmit any messages added to
+        the request queue.
+
+        """
         socket = self._zmq_context.socket(zmq.REQ)
         socket.connect(addr)
         while True:
             self._handle_request(socket)  # Blocks between requests
 
     def _handle_request(self, socket):
+        """
+        Send operation requests to the server and put the reply on a queue.
+
+        """
         request = self._request_queue.get()
         socket.send_json(request)
         reply = socket.recv_json()
         self._reply_queue.put(reply)
 
     def _update_monitor(self, addr):
+        """
+        Set up a subscription for updates from the server.
+
+        """
         socket = self._zmq_context.socket(zmq.SUB)
         socket.connect(addr)
         socket.setsockopt(zmq.SUBSCRIBE, b'')
@@ -71,6 +84,11 @@ class RobotClient(object):
             self._handle_update(socket)  # Blocks between updates
 
     def _handle_update(self, socket):
+        """
+        Fetch and handle messages from the server. Blocks until a message is
+        received.
+
+        """
         message = socket.recv_json()
         if message['type'] == 'values':
             self._handle_values(message.get('data', {}))
@@ -84,6 +102,11 @@ class RobotClient(object):
                          error=message.get('error'))
 
     def _handle_values(self, values):
+        """
+        Set the values received from the server as attributes on self and run
+        run event handler methods.
+
+        """
         for attr, value in values.items():
             setattr(self, attr, value)
             callback = getattr(self, 'on_' + attr, None)
@@ -94,10 +117,22 @@ class RobotClient(object):
                 if callback is not None:
                     callback(value)
 
-    def run_query(self, operation, **parameters):
+    def run_query(self, query_name, **parameters):
+        """Fetch data from the ``RobotServer``.
+
+        Executes a query method on the robot server and returns the data.
+
+        Args:
+            query_name (str): Name of the ``RobotServer`` method to run.
+            **parameters: keyword arguments to be passed to the query method.
+
+        Raises:
+            RobotError: Error happened on the server.
+
+        """
         with self._operation_lock:
             self._request_queue.put({
-                'operation': operation,
+                'operation': query_name,
                 'parameters': parameters,
             })
             reply = self._reply_queue.get()
@@ -106,8 +141,7 @@ class RobotClient(object):
         return reply.get('data', {})
 
     def run_operation(self, operation, callback=None, **parameters):
-        """
-        Run an operation on the ``RobotServer``.
+        """Run an operation on the ``RobotServer``.
 
         Args:
             operation (str): Name of the ``RobotServer`` method to run.
@@ -115,6 +149,9 @@ class RobotClient(object):
             callback: Callback function to receive updates about the operation.
                 Should handle arguments:
                 ``handle``, ``stage``, ``message``, ``error``
+
+        Raises:
+            ValueError: Invalid operation name or parameters.
 
         """
         with self._operation_lock:

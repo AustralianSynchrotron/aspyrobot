@@ -23,7 +23,7 @@ def foreground_operation(func):
         server.operation_update(handle, stage='start')
         if (server.robot.foreground_done.value and
             server._foreground_lock.acquire(False)):
-            data, error = safe_run_operation(server, func, handle, *args, **kwargs)
+            data, error = _safe_run_operation(server, func, handle, *args, **kwargs)
             server._foreground_lock.release()
         else:
             error = 'busy'
@@ -42,7 +42,7 @@ def background_operation(func):
     @wraps(func)
     def wrapper(server, handle, *args, **kwargs):
         server.operation_update(handle, stage='start')
-        data, error = safe_run_operation(server, func, handle, *args, **kwargs)
+        data, error = _safe_run_operation(server, func, handle, *args, **kwargs)
         server.operation_update(handle, stage='end', message=data, error=error)
     wrapper._operation_type = 'background'
     return wrapper
@@ -55,13 +55,13 @@ def query_operation(func):
     """
     @wraps(func)
     def wrapper(server, *args, **kwargs):
-        data, error = safe_run_operation(server, func, *args, **kwargs)
+        data, error = _safe_run_operation(server, func, *args, **kwargs)
         return {'error': error, 'data': data}
     wrapper._operation_type = 'query'
     return wrapper
 
 
-def safe_run_operation(server, func, *args, **kwargs):
+def _safe_run_operation(server, func, *args, **kwargs):
     data, error = None, None
     try:
         data = func(server, *args, **kwargs)
