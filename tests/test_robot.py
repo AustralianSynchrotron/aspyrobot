@@ -10,6 +10,7 @@ def robot():
     for attr in robot.attrs:
         setattr(robot, attr, MagicMock())
     robot.foreground_done.get.return_value = 1
+    robot.foreground_error.get.return_value = 0
     yield robot
 
 
@@ -39,6 +40,15 @@ def test_run_task_raises_exception_if_op_doesnt_start(robot):
     with pytest.raises(RobotError) as exception:
         robot.run_task('calibrate', 'l 0', timeout=0.1)
     assert 'failed to start' in str(exception)
+
+
+def test_run_tasks_raises_exception_if_foreground_error_occurs(robot):
+    robot.foreground_done.get.side_effect = [1, 0, 1]
+    robot.task_result.get.return_value = 'ok done'
+    robot.foreground_error.get.return_value = 1
+    robot.foreground_error_message.get.return_value = 'bad bad happened'
+    with pytest.raises(RobotError) as exception:
+        robot.run_task('calibrate', 'l 0', timeout=0.1)
 
 
 def test_snapshot():

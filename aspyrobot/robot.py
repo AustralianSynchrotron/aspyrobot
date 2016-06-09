@@ -68,6 +68,17 @@ class Robot(object):
         pv.put(0)
 
     def run_task(self, name, args='', timeout=.5):
+        """Execute a foreground task on the robot.
+
+        Checks to see that the robot controller foreground thread is free
+        and then executes a task. Blocks until the task is complete.
+
+        Args:
+            name (str): Robot controller task to run
+            args (str): arguments to supply to the controller
+            timeout (float): Seconds to wait for the task to being
+
+        """
         if not self.foreground_done.get():
             raise RobotError('busy')
         self.task_args.put(args or '\0')
@@ -76,10 +87,12 @@ class Robot(object):
         self._wait_for_foreground_busy(timeout)
         self._wait_for_foreground_free()
         poll(DELAY_TO_PROCESS)
-        # TODO: Check for foreground_error
+        if self.foreground_error.get() != 0:
+            message = self.foreground_error_message.get(as_string=True)
+            raise RobotError(message)
         result = self.task_result.get(as_string=True)
         status, _, message = result.partition(' ')
-        if status.lower() not in {'ok', 'normal'}:  # TODO
+        if status.lower() not in {'ok', 'normal'}:
             raise RobotError(message)
         return message
 
