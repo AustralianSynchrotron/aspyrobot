@@ -62,6 +62,10 @@ def query_operation(func):
 
 
 def _safe_run_operation(server, func, *args, **kwargs):
+    """Run a robot operation and catch any exceptions.
+
+    Used by the operation decorators.
+    """
     data, error = None, None
     try:
         data = func(server, *args, **kwargs)
@@ -105,6 +109,11 @@ class RobotServer(object):
 
     @withCA
     def setup(self):
+        """Set up the server.
+
+        Starts threads and registers for EPICS callbacks.
+
+        """
         self._publisher_thread = CAThread(target=self._publisher,
                                           args=(self.update_addr,), daemon=True)
         self._publisher_thread.start()
@@ -118,10 +127,15 @@ class RobotServer(object):
         self.logger.debug('setup complete')
 
     def shutdown(self):
+        """Request the server shuts down.
+
+        Causes the publisher and request threads to exit gracefully.
+
+        """
         self._shutdown_requested = True
 
     def _pv_callback(self, pvname, value, char_value, type, **kwargs):
-        # TODO: Too tightly coupled with robot class
+        """When robot PVs change send a value update to clients."""
         suffix = pvname.replace(self.robot._prefix, '')
         attr = self.robot.attrs_r[suffix]
         if 'char' in type or 'string' in type:
@@ -129,6 +143,7 @@ class RobotServer(object):
         self.values_update({attr: value})
 
     def _publisher(self, update_addr):
+        """Publish robot state updates to clients over Zero-MQ."""
         socket = self._zmq_context.socket(zmq.PUB)
         socket.bind(update_addr)
         while not self._shutdown_requested:
@@ -143,6 +158,7 @@ class RobotServer(object):
         socket.close()
 
     def _request_handler(self, request_addr):
+        """Listen for operation requests from clients."""
         socket = self._zmq_context.socket(zmq.REP)
         socket.bind(request_addr)
         while not self._shutdown_requested:
@@ -156,6 +172,7 @@ class RobotServer(object):
         socket.close()
 
     def _process_request(self, message):
+        """Parse requests from the clients and take the appropriate action."""
         self.logger.debug('client request: %r', message)
         operation = message.get('operation')
         parameters = message.get('parameters', {})
@@ -192,11 +209,19 @@ class RobotServer(object):
             return {'error': 'invalid request: unknown operation type'}
 
     def _next_handle(self):
+        """Generate a new operation handle in a thread safe way."""
         with self._handle_lock:
             self._operation_handle += 1
             return self._operation_handle
 
     def _on_robot_update(self, char_value, **_):
+        """Handle special update messages from SPEL.
+
+        These messages use Python dictionary literal syntax and contain a key
+        for the variable to be set. We call `update_x` method with the other
+        key/values from the dictionary supplied as keyword arguments.
+
+        """
         try:
             message = literal_eval(char_value)
         except SyntaxError:
@@ -212,6 +237,15 @@ class RobotServer(object):
             self.logger.error('Invalid method signature for update: %r', message)
 
     def operation_update(self, handle, message='', stage='update', error=None):
+        """Add an operation update to the queue to be sent clients.
+
+        Args:
+            handle (int): Operation handle.
+            message (str): Message to be sent to clients.
+            stage (str): `'start'`, `'update'` or `'end'`
+            error (str): Error message.
+
+        """
         self.publish_queue.put({
             'type': 'operation',
             'stage': stage,
@@ -221,10 +255,23 @@ class RobotServer(object):
         })
 
     def values_update(self, update):
+        """Add an robot attribute value update to the queue to be sent clients.
+
+        Args:
+            update (dict): robot attributes and their values. For example:
+                {'safety_gate': 1, 'motors_on': 0}
+
+        """
         self.publish_queue.put({'type': 'values', 'data': update})
 
     @query_operation
     def refresh(self):
+        """Query operation to fetch the latest values of the robot state.
+
+        This method should be overridden if the server maintains additional state
+        information that needs to be sent to the clients.
+
+        """
         return self.robot.snapshot()
 
     @background_operation
