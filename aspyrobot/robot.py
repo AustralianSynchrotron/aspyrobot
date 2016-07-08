@@ -52,6 +52,14 @@ class Robot(object):
             setattr(self, attr, pv)
 
     def snapshot(self):
+        """Capture the robot state to a dictionary.
+
+        Stores the value of each attribute PV to a dictionary. For string and
+        char type PVs the string representation is stored.
+
+        Returns: dict
+
+        """
         data = {}
         for attr in self.attrs:
             pv = getattr(self, attr)
@@ -62,11 +70,6 @@ class Robot(object):
             data[attr] = value
         return data
 
-    def execute(self, attr):
-        pv = getattr(self, attr)
-        pv.put(1, wait=True)
-        pv.put(0)
-
     def run_task(self, name, args='', timeout=.5):
         """Execute a foreground task on the robot.
 
@@ -75,7 +78,7 @@ class Robot(object):
 
         Args:
             name (str): Robot controller task to run
-            args (str): arguments to supply to the controller
+            args (str): Argument string to supply to the controller
             timeout (float): Seconds to wait for the task to being
 
         """
@@ -97,12 +100,23 @@ class Robot(object):
         return message
 
     def run_background_task(self, name, args=''):
+        """Execute a background task on the robot.
+
+        Background tasks won't trigger the foreground_done so there is no way
+        to tell when they start or finish.
+
+        Args:
+            name (str): Robot controller task to run
+            args (str): Argument string to supply to the controller
+
+        """
         self.task_args.put(args or '\0')
         poll(DELAY_TO_PROCESS)
         self.generic_command.put(name)
         poll(DELAY_TO_PROCESS)
 
     def _wait_for_foreground_busy(self, timeout):
+        """Wait for the foreground busy flag to be set."""
         t0 = time()
         while time() < t0 + timeout:
             if self.foreground_done.get() == 0:
@@ -112,6 +126,7 @@ class Robot(object):
             raise RobotError('operation failed to start')
 
     def _wait_for_foreground_free(self):
+        """Wait for the foreground busy flag to clear."""
         while True:
             if self.foreground_done.get() == 1:
                 break

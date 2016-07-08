@@ -14,12 +14,6 @@ def robot():
     yield robot
 
 
-def test_execute(robot):
-    robot.calibrate = MagicMock()
-    robot.execute('calibrate')
-    assert robot.calibrate.put.call_args_list == [call(1, wait=True), call(0)]
-
-
 def test_run_task_raises_exception_if_busy(robot):
     robot.foreground_done.get.return_value = 0
     with pytest.raises(RobotError) as exception:
@@ -47,7 +41,7 @@ def test_run_tasks_raises_exception_if_foreground_error_occurs(robot):
     robot.task_result.get.return_value = 'ok done'
     robot.foreground_error.get.return_value = 1
     robot.foreground_error_message.get.return_value = 'bad bad happened'
-    with pytest.raises(RobotError) as exception:
+    with pytest.raises(RobotError):
         robot.run_task('calibrate', 'l 0', timeout=0.1)
 
 

@@ -259,7 +259,7 @@ class RobotServer(object):
 
         Args:
             update (dict): robot attributes and their values. For example:
-                {'safety_gate': 1, 'motors_on': 0}
+                `{'safety_gate': 1, 'motors_on': 0}`
 
         """
         self.publish_queue.put({'type': 'values', 'data': update})
