@@ -8,7 +8,7 @@ from aspyrobot import RobotClient, RobotServer
 from aspyrobot.server import query_operation
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def server():
     robot = MagicMock()
     robot.snapshot.return_value = {}
@@ -23,7 +23,7 @@ def server():
 def client():
     client = RobotClient()
     client.setup()
-    return client
+    yield client
 
 
 def test_queries_work(server, client):

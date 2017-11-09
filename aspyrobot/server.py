@@ -20,9 +20,8 @@ def foreground_operation(func):
     """
     @wraps(func)
     def wrapper(server, handle, *args, **kwargs):
-        server.operation_update(handle, stage='start')
-        if (server.robot.foreground_done.value and
-            server._foreground_lock.acquire(False)):
+        server.operation_update(handle, stage='start', message=func.__name__)
+        if server.robot.foreground_done.value and server._foreground_lock.acquire(False):
             data, error = _safe_run_operation(server, func, handle, *args, **kwargs)
             server._foreground_lock.release()
         else:
@@ -41,7 +40,7 @@ def background_operation(func):
     """
     @wraps(func)
     def wrapper(server, handle, *args, **kwargs):
-        server.operation_update(handle, stage='start')
+        server.operation_update(handle, stage='start', message=func.__name__)
         data, error = _safe_run_operation(server, func, handle, *args, **kwargs)
         server.operation_update(handle, stage='end', message=data, error=error)
     wrapper._operation_type = 'background'

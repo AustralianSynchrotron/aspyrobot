@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, call
 from aspyrobot.robot import Robot, RobotError
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def robot():
     robot = Robot('TEST_ROBOT:')
     for attr in robot.attrs:

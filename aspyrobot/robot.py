@@ -8,7 +8,7 @@ from .exceptions import RobotError
 DELAY_TO_PROCESS = .3
 
 
-class Robot(object):
+class Robot:
     """
     The ``Robot`` class creates EPICS connections to the robot IOC. It is
     intended to be supplied to ``RobotServer`` and not used directly.

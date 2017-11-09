@@ -9,7 +9,7 @@ from aspyrobot.server import (RobotServer, query_operation, foreground_operation
 from aspyrobot.exceptions import RobotError
 
 
-@pytest.yield_fixture
+@pytest.fixture
 def server():
     robot = MagicMock(_prefix='MOCK_ROBOT:')
     robot.foreground_done.value = 1
@@ -153,12 +153,27 @@ def test_foreground_operation_with_robot_error(server):
     assert server._foreground_lock.acquire(False) is True
 
 
-def test_foreground_operation_sends_message(server):
+def test_foreground_operation_sends_messages(server):
     @foreground_operation
     def operation(server, handle):
         return 'all good'
     operation(server, 1)
-    end_update = list(operation_updates(server))[-1]
+    updates = list(operation_updates(server))
+    start_update = updates[0]
+    end_update = updates[-1]
+    assert start_update['message'] == 'operation'
+    assert end_update['message'] == 'all good'
+
+
+def test_background_operation_sends_messages(server):
+    @background_operation
+    def operation(server, handle):
+        return 'all good'
+    operation(server, 1)
+    updates = list(operation_updates(server))
+    start_update = updates[0]
+    end_update = updates[-1]
+    assert start_update['message'] == 'operation'
     assert end_update['message'] == 'all good'
 
 

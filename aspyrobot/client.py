@@ -6,7 +6,7 @@ import zmq
 from .exceptions import RobotError
 
 
-class RobotClient(object):
+class RobotClient:
     """
     ``RobotClient``\ s are used to remotely monitor the robot and initiate
     operations.
