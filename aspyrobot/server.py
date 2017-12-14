@@ -147,7 +147,7 @@ class RobotServer(object):
         socket.bind(update_addr)
         while not self._shutdown_requested:
             try:
-                message = self.publish_queue.get(timeout=.01)
+                message = self.publish_queue.get(timeout=.1)
             except Empty:
                 continue
             data = message.get('data', {})
@@ -164,7 +164,7 @@ class RobotServer(object):
             try:
                 message = socket.recv_json(flags=zmq.NOBLOCK)
             except zmq.ZMQError:
-                time.sleep(.01)
+                time.sleep(.05)
                 continue
             response = self._process_request(message)
             socket.send_json(response)
