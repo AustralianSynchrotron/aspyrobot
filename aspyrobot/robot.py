@@ -70,7 +70,7 @@ class Robot:
             data[attr] = value
         return data
 
-    def run_task(self, name, args='', timeout=.5):
+    def run_task(self, name, args='', timeout=2.5):
         """Execute a foreground task on the robot.
 
         Checks to see that the robot controller foreground thread is free
