@@ -21,7 +21,6 @@ class RobotClient:
         task_message (str): Messages about current foreground task
         task_progress (str): Current task progress
         model (str): Model of the robot
-        time (str): Time on robot controller (can be used as a heartbeat monitor)
         at_home (int): Whether the robot is in the home position
         motors_on (int): Whether the robot motors are on
         motors_on_command (int): Value of motors on instruction

@@ -22,7 +22,6 @@ class Robot:
         'task_progress': 'TASKPROG_MON',
         'task_result': 'RRESULT_MON',
         'model': 'MODEL_MON',
-        'time': 'TIME_MON',
         'at_home': 'ATHOME_STATUS',
         'motors_on': 'MOTOR_STATUS',
         'motors_on_command': 'MOTOR_CMD',
