@@ -5,9 +5,6 @@ from epics import PV, poll
 from .exceptions import RobotError
 
 
-DELAY_TO_PROCESS = .3
-
-
 class Robot:
     """
     The ``Robot`` class creates EPICS connections to the robot IOC. It is
@@ -45,6 +42,9 @@ class Robot:
     }
     attrs_r = {v: k for k, v in attrs.items()}
 
+    DELAY_TO_PROCESS = 0.3
+    TASK_TIMEOUT = 2.5
+
     def __init__(self, prefix):
         self._prefix = prefix
         for attr, suffix in self.attrs.items():
@@ -70,7 +70,7 @@ class Robot:
             data[attr] = value
         return data
 
-    def run_task(self, name, args='', timeout=2.5):
+    def run_task(self, name, args=''):
         """Execute a foreground task on the robot.
 
         Checks to see that the robot controller foreground thread is free
@@ -85,11 +85,11 @@ class Robot:
         if not self.foreground_done.get():
             raise RobotError('busy')
         self.task_args.put(args or '\0')
-        poll(DELAY_TO_PROCESS)
+        poll(self.DELAY_TO_PROCESS)
         self.generic_command.put(name)
-        self._wait_for_foreground_busy(timeout)
+        self._wait_for_foreground_busy(self.TASK_TIMEOUT)
         self._wait_for_foreground_free()
-        poll(DELAY_TO_PROCESS)
+        poll(self.DELAY_TO_PROCESS)
         if self.foreground_error.get() != 0:
             message = self.foreground_error_message.get(as_string=True)
             raise RobotError(message)
@@ -111,9 +111,9 @@ class Robot:
 
         """
         self.task_args.put(args or '\0')
-        poll(DELAY_TO_PROCESS)
+        poll(self.DELAY_TO_PROCESS)
         self.generic_command.put(name)
-        poll(DELAY_TO_PROCESS)
+        poll(self.DELAY_TO_PROCESS)
 
     def _wait_for_foreground_busy(self, timeout):
         """Wait for the foreground busy flag to be set."""

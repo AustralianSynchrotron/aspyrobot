@@ -7,6 +7,8 @@ from aspyrobot.robot import Robot, RobotError
 @pytest.fixture
 def robot():
     robot = Robot('TEST_ROBOT:')
+    robot.DELAY_TO_PROCESS = 0.001
+    robot.TASK_TIMEOUT = 0.001
     for attr in robot.attrs:
         setattr(robot, attr, MagicMock())
     robot.foreground_done.get.return_value = 1
@@ -32,7 +34,7 @@ def test_run_task_sets_args_and_issues_command(robot):
 
 def test_run_task_raises_exception_if_op_doesnt_start(robot):
     with pytest.raises(RobotError) as exception:
-        robot.run_task('calibrate', 'l 0', timeout=0.1)
+        robot.run_task('calibrate', 'l 0')
     assert 'failed to start' in str(exception)
 
 
@@ -42,7 +44,7 @@ def test_run_tasks_raises_exception_if_foreground_error_occurs(robot):
     robot.foreground_error.get.return_value = 1
     robot.foreground_error_message.get.return_value = 'bad bad happened'
     with pytest.raises(RobotError):
-        robot.run_task('calibrate', 'l 0', timeout=0.1)
+        robot.run_task('calibrate', 'l 0')
 
 
 def test_snapshot():
